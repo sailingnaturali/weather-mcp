@@ -1,11 +1,10 @@
 """NDBC buoy provider. Free, no API key.
 
-Two endpoints:
+Three endpoints:
 - activestations.xml: full station list (cached 24h)
 - realtime2/{id}.txt: latest observations per station (cached 15min)
-
-Standard .txt files report combined waves only (WVHT, DPD, APD, MWD) — no
-swell-vs-wind-wave separation. The agent layer surfaces this as a caveat.
+- realtime2/{id}.spec: swell vs wind-wave separation, where published (merged
+  into the observation when its timestamp is within 1h of the .txt row)
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ from weather_mcp.client import RateLimitedClient
 
 STATIONS_URL = "https://www.ndbc.noaa.gov/activestations.xml"
 REALTIME2_URL = "https://www.ndbc.noaa.gov/data/realtime2/{station_id}.txt"
+SPEC_URL = "https://www.ndbc.noaa.gov/data/realtime2/{station_id}.spec"
 
 MS_TO_KN = 1.94384
 MM = "MM"  # NDBC missing-value sentinel
@@ -31,6 +31,20 @@ class Station:
     name: str
     lat: float
     lon: float
+
+
+@dataclass(frozen=True)
+class SpecWaves:
+    """One row of a realtime2 .spec file: swell vs wind-wave separation."""
+
+    observed_utc: datetime
+    swell_height_m: float | None
+    swell_period_s: float | None
+    swell_dir_compass: str | None
+    wind_wave_height_m: float | None
+    wind_wave_period_s: float | None
+    wind_wave_dir_compass: str | None
+    steepness: str | None
 
 
 @dataclass(frozen=True)
@@ -94,6 +108,10 @@ def _maybe_int(token: str) -> int | None:
     return None if token == MM else int(round(float(token)))
 
 
+def _maybe_str(token: str) -> str | None:
+    return None if token in (MM, "N/A") else token
+
+
 def parse_realtime2(text: str, station: Station, ref_lat: float, ref_lon: float) -> BuoyObservation | None:
     """Parse the first non-header data row of a realtime2 .txt response.
 
@@ -144,6 +162,40 @@ def parse_realtime2(text: str, station: Station, ref_lat: float, ref_lon: float)
     if not obs.available_fields():
         return None
     return obs
+
+
+def parse_spec(text: str) -> SpecWaves | None:
+    """Parse the first data row of a realtime2 .spec response.
+
+    Directions arrive as compass strings (e.g. 'WSW') and are kept as-is.
+    Returns None if there are no data rows or every wave field is missing.
+    """
+    rows = [ln for ln in text.splitlines() if ln.strip() and not ln.startswith("#")]
+    if not rows:
+        return None
+    cols = rows[0].split()
+    if len(cols) < 13:
+        return None
+
+    yyyy, mm, dd, hh, mn = cols[0:5]
+    try:
+        observed = datetime(int(yyyy), int(mm), int(dd), int(hh), int(mn), tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+    spec = SpecWaves(
+        observed_utc=observed,
+        swell_height_m=_maybe_float(cols[6]),
+        swell_period_s=_maybe_float(cols[7]),
+        swell_dir_compass=_maybe_str(cols[10]),
+        wind_wave_height_m=_maybe_float(cols[8]),
+        wind_wave_period_s=_maybe_float(cols[9]),
+        wind_wave_dir_compass=_maybe_str(cols[11]),
+        steepness=_maybe_str(cols[12]),
+    )
+    if spec.swell_height_m is None and spec.wind_wave_height_m is None:
+        return None
+    return spec
 
 
 def _haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

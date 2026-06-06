@@ -9,6 +9,7 @@ from weather_mcp.providers.ndbc import (
     nearest_stations,
     parse_activestations,
     parse_realtime2,
+    parse_spec,
 )
 
 
@@ -115,3 +116,52 @@ async def test_fetch_station_observation_returns_none_on_404():
     obs = await fetch_station_observation(client, station, 0.0, 0.0)
     await client.aclose()
     assert obs is None
+
+
+SPEC_FULL = """#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT
+2099 01 01 00 40  1.5  1.1 10.0  0.6  3.4   W  SW    AVERAGE  5.0 270
+2099 01 01 00 10  1.4  1.0 10.0  0.6  3.2   W  SW    AVERAGE  5.0 268"""
+
+SPEC_NA_STEEPNESS = """#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT
+2099 01 01 00 40  0.4  0.1  6.2  0.4  2.9 WSW   W        N/A  2.9 273"""
+
+SPEC_ALL_MM = """#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT
+2099 01 01 00 40   MM   MM   MM   MM   MM  MM  MM         MM   MM  MM"""
+
+SPEC_HEADER_ONLY = """#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT"""
+
+
+def test_parse_spec_full_row():
+    spec = parse_spec(SPEC_FULL)
+    assert spec is not None
+    assert spec.observed_utc.isoformat() == "2099-01-01T00:40:00+00:00"
+    assert spec.swell_height_m == 1.1
+    assert spec.swell_period_s == 10.0
+    assert spec.swell_dir_compass == "W"
+    assert spec.wind_wave_height_m == 0.6
+    assert spec.wind_wave_period_s == 3.4
+    assert spec.wind_wave_dir_compass == "SW"
+    assert spec.steepness == "AVERAGE"
+
+
+def test_parse_spec_na_steepness_is_none():
+    spec = parse_spec(SPEC_NA_STEEPNESS)
+    assert spec is not None
+    assert spec.steepness is None
+    assert spec.swell_dir_compass == "WSW"
+
+
+def test_parse_spec_all_mm_returns_none():
+    assert parse_spec(SPEC_ALL_MM) is None
+
+
+def test_parse_spec_header_only_returns_none():
+    assert parse_spec(SPEC_HEADER_ONLY) is None
+
+
+def test_parse_spec_empty_returns_none():
+    assert parse_spec("") is None
