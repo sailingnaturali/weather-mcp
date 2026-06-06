@@ -1,6 +1,10 @@
 # weather-mcp
 
-MCP server for marine wind, swell, and buoy observations. Sibling to `tide-mcp` and `signalk-mcp` in the s/v Naturali navigator stack.
+MCP server for marine wind, swell, and buoy observations. Sibling to `currents-mcp` and `signalk-mcp` in the s/v Naturali navigator stack.
+
+Why a marine-specific weather server (separated swell vs wind waves, buoys as
+ground truth, the NDBC `.spec` format):
+[the full story on the engineering blog](https://engineering.sailingnaturali.com/marine-weather-mcp-buoy-ground-truth-ndbc-spec-swell-wind-waves/).
 
 ## Tools
 
