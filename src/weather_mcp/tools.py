@@ -230,11 +230,27 @@ def _age_display(observed_utc: datetime) -> str:
     return f"{hours} h ago"
 
 
+def _spec_wave_display(height_m: float | None, dir_compass: str | None, period_s: float | None) -> str:
+    if height_m is None:
+        return "unavailable"
+    s = f"{height_m:.1f} m"
+    if dir_compass:
+        s += f" from {dir_compass}"
+    if period_s is not None:
+        s += f" at {period_s:.0f} s"
+    return s
+
+
 def _buoy_summary(obs: BuoyObservation) -> str:
     bits: list[str] = []
     if obs.wind_speed_kn is not None:
         bits.append(_wind_display(WindObs(obs.wind_speed_kn, obs.wind_dir_deg, obs.wind_gust_kn)))
-    if obs.wave_height_m is not None:
+    if obs.swell_height_m is not None:
+        bits.append(
+            "swell "
+            + _spec_wave_display(obs.swell_height_m, obs.swell_dir_compass, obs.swell_period_s)
+        )
+    elif obs.wave_height_m is not None:
         wave_str = f"{obs.wave_height_m:.1f} m"
         if obs.wave_dir_deg is not None:
             wave_str += f" from {_compass(obs.wave_dir_deg)}"
@@ -245,7 +261,21 @@ def _buoy_summary(obs: BuoyObservation) -> str:
 
 
 def _buoy_dict(obs: BuoyObservation) -> dict:
-    return {
+    has_spec = obs.swell_height_m is not None or obs.wind_wave_height_m is not None
+
+    wave_block: dict = {
+        "value": {
+            "height_m": obs.wave_height_m,
+            "dom_period_s": obs.wave_dom_period_s,
+            "avg_period_s": obs.wave_avg_period_s,
+            "dir_deg": obs.wave_dir_deg,
+        },
+        "display": _buoy_wave_display(obs),
+    }
+    if not has_spec:
+        wave_block["note"] = "combined waves only — this station's .spec swell separation is unavailable or stale"
+
+    d: dict = {
         "station_id": obs.station.id,
         "name": obs.station.name,
         "distance_nm": round(obs.distance_nm, 1),
@@ -263,16 +293,7 @@ def _buoy_dict(obs: BuoyObservation) -> dict:
             if obs.wind_speed_kn is not None
             else "unavailable",
         },
-        "wave": {
-            "value": {
-                "height_m": obs.wave_height_m,
-                "dom_period_s": obs.wave_dom_period_s,
-                "avg_period_s": obs.wave_avg_period_s,
-                "dir_deg": obs.wave_dir_deg,
-            },
-            "display": _buoy_wave_display(obs),
-            "note": "combined waves only — NDBC standard files do not separate swell from wind waves",
-        },
+        "wave": wave_block,
         "pressure": {
             "value": {
                 "hpa": obs.pressure_hpa,
@@ -287,6 +308,28 @@ def _buoy_dict(obs: BuoyObservation) -> dict:
             f"({_age_display(obs.observed_utc)}): {_buoy_summary(obs)}"
         ),
     }
+
+    if has_spec:
+        d["swell"] = {
+            "value": {
+                "height_m": obs.swell_height_m,
+                "period_s": obs.swell_period_s,
+                "dir_compass": obs.swell_dir_compass,
+            },
+            "display": _spec_wave_display(obs.swell_height_m, obs.swell_dir_compass, obs.swell_period_s),
+        }
+        d["wind_wave"] = {
+            "value": {
+                "height_m": obs.wind_wave_height_m,
+                "period_s": obs.wind_wave_period_s,
+                "dir_compass": obs.wind_wave_dir_compass,
+            },
+            "display": _spec_wave_display(obs.wind_wave_height_m, obs.wind_wave_dir_compass, obs.wind_wave_period_s),
+        }
+        if obs.steepness is not None:
+            d["steepness"] = obs.steepness
+
+    return d
 
 
 def _buoy_wave_display(obs: BuoyObservation) -> str:
