@@ -260,3 +260,11 @@ async def test_fetch_station_observation_txt_404_still_none():
     obs = await fetch_station_observation(client, station, 48.5, -124.7)
     await client.aclose()
     assert obs is None, ".spec alone is not an observation"
+
+
+def test_parse_spec_malformed_numeric_returns_none():
+    # data-quality anomaly: non-numeric token in a numeric column must not raise
+    text = """#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT
+2099 01 01 00 40  1.5  N/A 10.0  0.6  3.4   W  SW    AVERAGE  5.0 270"""
+    assert parse_spec(text) is None

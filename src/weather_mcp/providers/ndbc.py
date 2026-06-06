@@ -193,16 +193,19 @@ def parse_spec(text: str) -> SpecWaves | None:
     except (TypeError, ValueError):
         return None
 
-    spec = SpecWaves(
-        observed_utc=observed,
-        swell_height_m=_maybe_float(cols[6]),
-        swell_period_s=_maybe_float(cols[7]),
-        swell_dir_compass=_maybe_str(cols[10]),
-        wind_wave_height_m=_maybe_float(cols[8]),
-        wind_wave_period_s=_maybe_float(cols[9]),
-        wind_wave_dir_compass=_maybe_str(cols[11]),
-        steepness=_maybe_str(cols[12]),
-    )
+    try:
+        spec = SpecWaves(
+            observed_utc=observed,
+            swell_height_m=_maybe_float(cols[6]),
+            swell_period_s=_maybe_float(cols[7]),
+            swell_dir_compass=_maybe_str(cols[10]),
+            wind_wave_height_m=_maybe_float(cols[8]),
+            wind_wave_period_s=_maybe_float(cols[9]),
+            wind_wave_dir_compass=_maybe_str(cols[11]),
+            steepness=_maybe_str(cols[12]),
+        )
+    except (TypeError, ValueError):
+        return None
     if spec.swell_height_m is None and spec.wind_wave_height_m is None:
         return None
     return spec
