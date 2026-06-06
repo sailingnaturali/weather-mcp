@@ -93,7 +93,9 @@ station 46088):
 - Fetch `.spec` concurrently with `.txt` per station; a missing/stale `.spec` (404 or
   obs time differing from the `.txt` row by more than 1 h) degrades gracefully —
   fields stay `None`, tool output unchanged from today.
-- Cache `.spec` responses 15 min under `ndbc:spec:{station}`, same policy as obs.
+- The merged observation is cached under the existing `ndbc:obs:{station}` key
+  (15 min); `.spec` is never fetched independently, so it needs no cache key of
+  its own.
 - `tools.py` `_buoy_dict()` adds `swell` and `wind_wave` blocks in the existing
   `{value, display}` shape; the `"combined waves only"` note is emitted only when
   `.spec` data is absent. `summary_display` prefers "swell X m at Y s from Z" over the
