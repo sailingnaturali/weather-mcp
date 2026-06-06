@@ -72,10 +72,10 @@ async def test_ndbc_observation_cache_roundtrips_spec_fields(tmp_path):
     cache.init_schema()
     station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
 
-    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.txt").mock(
+    txt_route = respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.txt").mock(
         return_value=httpx.Response(200, text=txt)
     )
-    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.spec").mock(
+    spec_route = respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.spec").mock(
         return_value=httpx.Response(200, text=spec)
     )
 
@@ -85,6 +85,8 @@ async def test_ndbc_observation_cache_roundtrips_spec_fields(tmp_path):
     second = await get_ndbc_observation(client, cache, station, 48.5, -124.7)
     await client.aclose()
 
+    assert txt_route.call_count == 1, "second call must use cache"
+    assert spec_route.call_count == 1, "second call must use cache"
     assert first.swell_height_m == 1.1
     assert second.swell_height_m == 1.1, "spec fields must survive the cache round-trip"
     assert second.wind_wave_dir_compass == "SW"
