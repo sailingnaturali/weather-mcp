@@ -255,17 +255,36 @@ async def fetch_active_stations(client: RateLimitedClient) -> list[Station]:
     return parse_activestations(resp.text)
 
 
-async def fetch_station_observation(
-    client: RateLimitedClient, station: Station, ref_lat: float, ref_lon: float
-) -> BuoyObservation | None:
-    """Fetch + parse the latest observation for one station."""
-    url = REALTIME2_URL.format(station_id=station.id)
+async def _get_text_or_none(client: RateLimitedClient, url: str) -> str | None:
     try:
         resp = await client.get(url)
         resp.raise_for_status()
     except Exception:
         return None
-    return parse_realtime2(resp.text, station, ref_lat, ref_lon)
+    return resp.text
+
+
+async def fetch_station_observation(
+    client: RateLimitedClient, station: Station, ref_lat: float, ref_lon: float
+) -> BuoyObservation | None:
+    """Fetch + parse the latest observation for one station.
+
+    .txt and .spec are fetched concurrently; a missing or stale .spec degrades
+    to the combined-waves-only observation.
+    """
+    txt_url = REALTIME2_URL.format(station_id=station.id)
+    spec_url = SPEC_URL.format(station_id=station.id)
+    txt_text, spec_text = await asyncio.gather(
+        _get_text_or_none(client, txt_url),
+        _get_text_or_none(client, spec_url),
+    )
+    if txt_text is None:
+        return None
+    obs = parse_realtime2(txt_text, station, ref_lat, ref_lon)
+    if obs is None:
+        return None
+    spec = parse_spec(spec_text) if spec_text is not None else None
+    return merge_spec(obs, spec)
 
 
 def nearest_stations(

@@ -112,6 +112,9 @@ async def test_fetch_station_observation_returns_none_on_404():
     respx.get("https://www.ndbc.noaa.gov/data/realtime2/9999.txt").mock(
         return_value=httpx.Response(404)
     )
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/9999.spec").mock(
+        return_value=httpx.Response(404)
+    )
     client = RateLimitedClient()
     station = Station(id="9999", name="Gone", lat=0.0, lon=0.0)
     obs = await fetch_station_observation(client, station, 0.0, 0.0)
@@ -207,3 +210,53 @@ def test_merged_obs_survives_to_dict():
     d = obs.to_dict()
     assert d["swell_height_m"] == 1.1
     assert d["wind_wave_dir_compass"] == "SW"
+
+
+@respx.mock
+async def test_fetch_station_observation_merges_spec():
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.txt").mock(
+        return_value=httpx.Response(200, text=REALTIME_FULL)
+    )
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.spec").mock(
+        return_value=httpx.Response(200, text=SPEC_FULL)
+    )
+    client = RateLimitedClient()
+    station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
+    obs = await fetch_station_observation(client, station, 48.5, -124.7)
+    await client.aclose()
+    assert obs is not None
+    assert obs.swell_height_m == 1.1
+    assert obs.wave_height_m == 1.5, ".txt fields unchanged"
+
+
+@respx.mock
+async def test_fetch_station_observation_spec_404_degrades():
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.txt").mock(
+        return_value=httpx.Response(200, text=REALTIME_FULL)
+    )
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.spec").mock(
+        return_value=httpx.Response(404)
+    )
+    client = RateLimitedClient()
+    station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
+    obs = await fetch_station_observation(client, station, 48.5, -124.7)
+    await client.aclose()
+    assert obs is not None
+    assert obs.swell_height_m is None
+    assert obs.wave_height_m == 1.5
+    assert "swell" not in obs.available_fields()
+
+
+@respx.mock
+async def test_fetch_station_observation_txt_404_still_none():
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.txt").mock(
+        return_value=httpx.Response(404)
+    )
+    respx.get("https://www.ndbc.noaa.gov/data/realtime2/46087.spec").mock(
+        return_value=httpx.Response(200, text=SPEC_FULL)
+    )
+    client = RateLimitedClient()
+    station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
+    obs = await fetch_station_observation(client, station, 48.5, -124.7)
+    await client.aclose()
+    assert obs is None, ".spec alone is not an observation"
