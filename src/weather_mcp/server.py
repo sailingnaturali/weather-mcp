@@ -116,9 +116,9 @@ def build_server(
             types.Tool(
                 name="get_nearest_buoy_observations",
                 description=(
-                    "NDBC observed wind and combined waves from the nearest reporting buoys. "
-                    "Use to reality-check the forecast. Note: standard NDBC files do not "
-                    "separate swell from wind waves."
+                    "NDBC observed wind and waves from the nearest reporting buoys. "
+                    "Use to reality-check the forecast. Where a station publishes spectral data, "
+                    "swell and wind waves are reported separately; otherwise combined waves only."
                 ),
                 inputSchema={
                     "type": "object",
