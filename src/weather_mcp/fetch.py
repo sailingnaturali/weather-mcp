@@ -111,6 +111,13 @@ def _obs_from_dict(
         wave_dir_deg=d.get("wave_dir_deg"),
         pressure_hpa=d.get("pressure_hpa"),
         pressure_tendency_hpa=d.get("pressure_tendency_hpa"),
+        swell_height_m=d.get("swell_height_m"),
+        swell_period_s=d.get("swell_period_s"),
+        swell_dir_compass=d.get("swell_dir_compass"),
+        wind_wave_height_m=d.get("wind_wave_height_m"),
+        wind_wave_period_s=d.get("wind_wave_period_s"),
+        wind_wave_dir_compass=d.get("wind_wave_dir_compass"),
+        steepness=d.get("steepness"),
     )
 
 
