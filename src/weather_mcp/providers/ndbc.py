@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import math
 import xml.etree.ElementTree as ET
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 
 from weather_mcp.client import RateLimitedClient
@@ -62,6 +62,14 @@ class BuoyObservation:
     wave_dir_deg: int | None
     pressure_hpa: float | None
     pressure_tendency_hpa: float | None
+    # From realtime2 .spec, when published and fresh (see merge_spec)
+    swell_height_m: float | None = None
+    swell_period_s: float | None = None
+    swell_dir_compass: str | None = None
+    wind_wave_height_m: float | None = None
+    wind_wave_period_s: float | None = None
+    wind_wave_dir_compass: str | None = None
+    steepness: str | None = None
 
     def available_fields(self) -> list[str]:
         out = []
@@ -69,6 +77,8 @@ class BuoyObservation:
             out.append("wind")
         if self.wave_height_m is not None or self.wave_dir_deg is not None:
             out.append("wave")
+        if self.swell_height_m is not None or self.wind_wave_height_m is not None:
+            out.append("swell")
         if self.pressure_hpa is not None:
             out.append("pressure")
         return out
@@ -196,6 +206,27 @@ def parse_spec(text: str) -> SpecWaves | None:
     if spec.swell_height_m is None and spec.wind_wave_height_m is None:
         return None
     return spec
+
+
+MAX_SPEC_SKEW_S = 3600  # .spec older/newer than the .txt row by more than 1h → stale
+
+
+def merge_spec(obs: BuoyObservation, spec: SpecWaves | None) -> BuoyObservation:
+    """Attach .spec wave separation to an observation when timestamps align."""
+    if spec is None:
+        return obs
+    if abs((obs.observed_utc - spec.observed_utc).total_seconds()) > MAX_SPEC_SKEW_S:
+        return obs
+    return replace(
+        obs,
+        swell_height_m=spec.swell_height_m,
+        swell_period_s=spec.swell_period_s,
+        swell_dir_compass=spec.swell_dir_compass,
+        wind_wave_height_m=spec.wind_wave_height_m,
+        wind_wave_period_s=spec.wind_wave_period_s,
+        wind_wave_dir_compass=spec.wind_wave_dir_compass,
+        steepness=spec.steepness,
+    )
 
 
 def _haversine_nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

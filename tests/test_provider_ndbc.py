@@ -6,6 +6,7 @@ from weather_mcp.providers.ndbc import (
     Station,
     fetch_active_stations,
     fetch_station_observation,
+    merge_spec,
     nearest_stations,
     parse_activestations,
     parse_realtime2,
@@ -165,3 +166,44 @@ def test_parse_spec_header_only_returns_none():
 
 def test_parse_spec_empty_returns_none():
     assert parse_spec("") is None
+
+
+SPEC_STALE = """#YY  MM DD hh mm WVHT  SwH  SwP  WWH  WWP SwD WWD  STEEPNESS  APD MWD
+#yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT
+2098 12 31 20 00  1.5  1.1 10.0  0.6  3.4   W  SW    AVERAGE  5.0 270"""
+
+
+def _full_obs():
+    station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
+    return parse_realtime2(REALTIME_FULL, station, ref_lat=48.5, ref_lon=-124.7)
+
+
+def test_merge_spec_attaches_fields():
+    # .txt row is 2099-01-01 00:50, .spec row 00:40 — 10 min skew, merges
+    obs = merge_spec(_full_obs(), parse_spec(SPEC_FULL))
+    assert obs.swell_height_m == 1.1
+    assert obs.swell_period_s == 10.0
+    assert obs.swell_dir_compass == "W"
+    assert obs.wind_wave_height_m == 0.6
+    assert obs.wind_wave_dir_compass == "SW"
+    assert obs.steepness == "AVERAGE"
+    assert "swell" in obs.available_fields()
+
+
+def test_merge_spec_none_is_noop():
+    obs = merge_spec(_full_obs(), None)
+    assert obs.swell_height_m is None
+    assert "swell" not in obs.available_fields()
+
+
+def test_merge_spec_stale_is_dropped():
+    # .spec row is >1h older than the .txt row — must not merge
+    obs = merge_spec(_full_obs(), parse_spec(SPEC_STALE))
+    assert obs.swell_height_m is None
+
+
+def test_merged_obs_survives_to_dict():
+    obs = merge_spec(_full_obs(), parse_spec(SPEC_FULL))
+    d = obs.to_dict()
+    assert d["swell_height_m"] == 1.1
+    assert d["wind_wave_dir_compass"] == "SW"
