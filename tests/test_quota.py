@@ -35,13 +35,10 @@ def test_consume_raises_at_limit():
     assert q.used_today() == 2
 
 
-def test_refund_decrements_floor_zero():
-    q = _quota()
-    q.consume()
-    q.refund()
-    assert q.used_today() == 0
-    q.refund()
-    assert q.used_today() == 0
+def test_refund_api_is_gone():
+    # refund() was dead: consume() only runs after a 200, so the
+    # reserve-then-refund flow it described never existed. Pruned (R4).
+    assert not hasattr(_quota(), "refund")
 
 
 def test_yesterday_does_not_count_against_today(monkeypatch):

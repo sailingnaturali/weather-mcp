@@ -149,7 +149,14 @@ def build_server(
 
     @server.call_tool()
     async def _call_tool(name: str, args: dict | None) -> list[types.TextContent]:
-        result = await dispatch(client, cache, quota, name, args or {})
+        try:
+            result = await dispatch(client, cache, quota, name, args or {})
+        except ValueError:
+            raise                       # unknown tool: a protocol error is right
+        except Exception as exc:        # noqa: BLE001 — spoken-path boundary
+            # A dispatch/parse bug must reach the agent as a speakable error
+            # dict, not a raw MCP protocol failure.
+            result = {"error": f"weather lookup failed: {exc.__class__.__name__}: {exc}"}
         return [types.TextContent(type="text", text=json.dumps(result, indent=2))]
 
     return server

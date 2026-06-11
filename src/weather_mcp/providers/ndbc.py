@@ -110,12 +110,29 @@ def parse_activestations(xml_text: str) -> list[Station]:
     return out
 
 
-def _maybe_float(token: str) -> float | None:
-    return None if token == MM else float(token)
+# NDBC marks missing data as MM *or* per-column numeric sentinels. The sets
+# are per column because some sentinel-looking numbers are legitimate in other
+# columns: 99° is a real wind direction and 999.0 hPa a real (storm) pressure,
+# but 999° and 9999.0 hPa are impossible (fleet conventions R3).
+_DIR_SENTINELS = frozenset({999})
+_SPEED_SENTINELS = frozenset({99.0, 999.0})       # m/s
+_WAVE_SENTINELS = frozenset({99.0})               # m / s (heights and periods)
+_PRES_SENTINELS = frozenset({9999.0})             # hPa
+_PTDY_SENTINELS = frozenset({99.0})               # hPa tendency (plausible ±15)
 
 
-def _maybe_int(token: str) -> int | None:
-    return None if token == MM else int(round(float(token)))
+def _maybe_float(token: str, sentinels: frozenset[float] = frozenset()) -> float | None:
+    if token == MM:
+        return None
+    v = float(token)
+    return None if v in sentinels else v
+
+
+def _maybe_int(token: str, sentinels: frozenset[int] = frozenset()) -> int | None:
+    if token == MM:
+        return None
+    v = int(round(float(token)))
+    return None if v in sentinels else v
 
 
 def _maybe_str(token: str) -> str | None:
@@ -141,15 +158,15 @@ def parse_realtime2(text: str, station: Station, ref_lat: float, ref_lon: float)
     except (TypeError, ValueError):
         return None
 
-    wdir = _maybe_int(cols[5])
-    wspd_ms = _maybe_float(cols[6])
-    gst_ms = _maybe_float(cols[7])
-    wvht = _maybe_float(cols[8])
-    dpd = _maybe_float(cols[9])
-    apd = _maybe_float(cols[10])
-    mwd = _maybe_int(cols[11])
-    pres = _maybe_float(cols[12])
-    ptdy = _maybe_float(cols[17]) if len(cols) > 17 else None
+    wdir = _maybe_int(cols[5], _DIR_SENTINELS)
+    wspd_ms = _maybe_float(cols[6], _SPEED_SENTINELS)
+    gst_ms = _maybe_float(cols[7], _SPEED_SENTINELS)
+    wvht = _maybe_float(cols[8], _WAVE_SENTINELS)
+    dpd = _maybe_float(cols[9], _WAVE_SENTINELS)
+    apd = _maybe_float(cols[10], _WAVE_SENTINELS)
+    mwd = _maybe_int(cols[11], _DIR_SENTINELS)
+    pres = _maybe_float(cols[12], _PRES_SENTINELS)
+    ptdy = _maybe_float(cols[17], _PTDY_SENTINELS) if len(cols) > 17 else None
 
     wspd_kn = wspd_ms * MS_TO_KN if wspd_ms is not None else None
     gst_kn = gst_ms * MS_TO_KN if gst_ms is not None else None
@@ -196,11 +213,11 @@ def parse_spec(text: str) -> SpecWaves | None:
     try:
         spec = SpecWaves(
             observed_utc=observed,
-            swell_height_m=_maybe_float(cols[6]),
-            swell_period_s=_maybe_float(cols[7]),
+            swell_height_m=_maybe_float(cols[6], _WAVE_SENTINELS),
+            swell_period_s=_maybe_float(cols[7], _WAVE_SENTINELS),
             swell_dir_compass=_maybe_str(cols[10]),
-            wind_wave_height_m=_maybe_float(cols[8]),
-            wind_wave_period_s=_maybe_float(cols[9]),
+            wind_wave_height_m=_maybe_float(cols[8], _WAVE_SENTINELS),
+            wind_wave_period_s=_maybe_float(cols[9], _WAVE_SENTINELS),
             wind_wave_dir_compass=_maybe_str(cols[11]),
             steepness=_maybe_str(cols[12]),
         )

@@ -268,3 +268,36 @@ def test_parse_spec_malformed_numeric_returns_none():
 #yr  mo dy hr mn    m    m  sec    m  sec  -  degT     -      sec degT
 2099 01 01 00 40  1.5  N/A 10.0  0.6  3.4   W  SW    AVERAGE  5.0 270"""
     assert parse_spec(text) is None
+
+
+REALTIME_NUMERIC_SENTINELS = """#YY  MM DD hh mm WDIR WSPD GST  WVHT   DPD   APD MWD   PRES  ATMP  WTMP  DEWP  VIS PTDY  TIDE
+#yr  mo dy hr mn degT m/s  m/s     m   sec   sec degT   hPa  degC  degC  degC  nmi  hPa    ft
+2099 01 01 00 50  999  7.2 99.0  99.0  99.0  99.0 999  9999.0  12.0  10.5  11.0   MM 99.0    MM"""
+
+
+def test_parse_realtime2_numeric_sentinels_read_as_missing():
+    # NDBC uses 99/999/9999 alongside MM for missing fields; 999° wind
+    # direction and 9999 hPa must never be spoken as data (fleet R3).
+    station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
+    obs = parse_realtime2(REALTIME_NUMERIC_SENTINELS, station, ref_lat=48.5, ref_lon=-124.7)
+    assert obs is not None
+    assert obs.wind_dir_deg is None          # 999
+    assert obs.wind_gust_kn is None          # 99.0 m/s
+    assert obs.wave_height_m is None         # 99.0 m
+    assert obs.wave_dom_period_s is None     # 99.0 s
+    assert obs.wave_dir_deg is None          # 999
+    assert obs.pressure_hpa is None          # 9999.0
+    assert obs.pressure_tendency_hpa is None # 99.0
+    assert round(obs.wind_speed_kn, 1) == 14.0   # real value survives
+
+
+def test_parse_realtime2_legit_values_near_sentinels_kept():
+    # 99° is a real direction and 999.0 hPa a real pressure — per-column sets.
+    rt = """#YY  MM DD hh mm WDIR WSPD GST  WVHT   DPD   APD MWD   PRES  ATMP  WTMP  DEWP  VIS PTDY  TIDE
+#yr  mo dy hr mn degT m/s  m/s     m   sec   sec degT   hPa  degC  degC  degC  nmi  hPa    ft
+2099 01 01 00 50   99  7.2  9.8   1.5   8.0   6.0  99   999.0  12.0  10.5  11.0   MM -0.6    MM"""
+    station = Station(id="46087", name="Neah Bay", lat=48.494, lon=-124.728)
+    obs = parse_realtime2(rt, station, ref_lat=48.5, ref_lon=-124.7)
+    assert obs.wind_dir_deg == 99
+    assert obs.wave_dir_deg == 99
+    assert obs.pressure_hpa == 999.0

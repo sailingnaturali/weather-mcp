@@ -70,23 +70,6 @@ class StormglassQuota:
         self._conn.commit()
         return new_used
 
-    def refund(self) -> int:
-        """Decrement today's counter (floor 0). Use only when an upstream call
-        consumed a token but returned a transient error and we want to retry later."""
-        today = self._today()
-        cur = self._conn.execute(
-            "SELECT used FROM stormglass_quota WHERE date_utc = ?", (today,)
-        )
-        row = cur.fetchone()
-        used = int(row[0]) if row else 0
-        new_used = max(0, used - 1)
-        self._conn.execute(
-            "INSERT OR REPLACE INTO stormglass_quota (date_utc, used) VALUES (?, ?)",
-            (today, new_used),
-        )
-        self._conn.commit()
-        return new_used
-
     def reset_seconds(self) -> int:
         """Seconds until next UTC midnight."""
         now = datetime.now(timezone.utc)

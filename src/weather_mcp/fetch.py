@@ -6,6 +6,7 @@ to_dict/from_dict round-trip.
 
 from __future__ import annotations
 
+import asyncio
 import time
 
 from weather_mcp.cache import EventCache
@@ -18,9 +19,16 @@ OPENMETEO_TTL = 60 * 60  # 1h
 STORMGLASS_TTL = 6 * 60 * 60  # 6h
 NDBC_OBS_TTL = 15 * 60  # 15min
 NDBC_STATIONS_TTL = 24 * 60 * 60
+# Forecasts are always fetched and cached at this fixed horizon; hours_ahead
+# only slices the read. Otherwise a 6h request would poison a later 24h
+# request with a truncated cache hit (fleet conventions R4).
+MAX_FORECAST_HOURS = 48
 
 
 def _bucket(value: float, places: int) -> str:
+    # Spatial cache cell. 2 dp ≈ 1.1 km (openmeteo), 1 dp ≈ 11 km (stormglass —
+    # coarse on purpose: model resolution is coarser than 11 km and tokens are
+    # scarce; nearby anchorages intentionally share a cell).
     return f"{round(value, places):.{places}f}"
 
 
@@ -40,9 +48,9 @@ async def get_openmeteo_forecast(
     if cached is not None:
         hours = [MarineForecastHour.from_dict(d) for d in cached]
         return hours[:hours_ahead]
-    hours = await openmeteo.fetch_forecast(client, lat, lon, hours_ahead=hours_ahead)
+    hours = await openmeteo.fetch_forecast(client, lat, lon, hours_ahead=MAX_FORECAST_HOURS)
     cache.put_with_ttl(key, [h.to_dict() for h in hours])
-    return hours
+    return hours[:hours_ahead]
 
 
 async def get_stormglass_forecast(
@@ -58,9 +66,11 @@ async def get_stormglass_forecast(
     if cached is not None:
         hours = [MarineForecastHour.from_dict(d) for d in cached]
         return hours[:hours_ahead]
-    hours = await stormglass.fetch_forecast(client, quota, lat, lon, hours_ahead=hours_ahead)
+    # Full horizon costs the same single quota token as a short one.
+    hours = await stormglass.fetch_forecast(client, quota, lat, lon,
+                                            hours_ahead=MAX_FORECAST_HOURS)
     cache.put_with_ttl(key, [h.to_dict() for h in hours])
-    return hours
+    return hours[:hours_ahead]
 
 
 async def get_ndbc_stations(
@@ -131,12 +141,12 @@ async def get_nearest_buoy_observations(
 ) -> list[ndbc.BuoyObservation]:
     stations = await get_ndbc_stations(client, cache)
     candidates = ndbc.nearest_stations(stations, lat, lon, max_distance_nm, limit * 3)
-    results: list[ndbc.BuoyObservation] = []
-    for station in candidates:
-        obs = await get_ndbc_observation(client, cache, station, lat, lon)
-        if obs is not None:
-            results.append(obs)
-        if len(results) >= limit:
-            break
+    # Fetch candidates concurrently (R6): cold-cache latency was serial ×
+    # candidates. The extra fetches beyond `limit` land in the 15-min cache.
+    fetched = await asyncio.gather(
+        *(get_ndbc_observation(client, cache, station, lat, lon)
+          for station in candidates)
+    )
+    results = [obs for obs in fetched if obs is not None]
     results.sort(key=lambda o: o.distance_nm)
     return results[:limit]

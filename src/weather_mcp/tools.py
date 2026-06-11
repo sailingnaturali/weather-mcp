@@ -47,6 +47,8 @@ def _wind_display(w: WindObs) -> str:
     s = f"{w.speed_kn:.0f} kn"
     if w.dir_deg is not None:
         s += f" {_compass(w.dir_deg)}"
+    # Deliberate: only a >=5 kn spread is worth speaking — "18 gusting 22"
+    # reads plain so routine gustiness doesn't pad every wind sentence.
     if w.gust_kn is not None and w.speed_kn is not None and w.gust_kn >= w.speed_kn + 5:
         s += f", gusting {w.gust_kn:.0f}"
     return s

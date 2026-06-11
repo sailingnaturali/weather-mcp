@@ -1,11 +1,11 @@
 """Disk-backed cache for marine weather data.
 
-Copied from tide-mcp/src/tide_mcp/cache.py. Keep in sync.
-
-Two access patterns share one table:
-- Immutable entries keyed by content/date — never expire (written_at left NULL).
-- TTL entries (forecasts, buoy observations, station lists) keyed by source +
-  spatial bucket via get_with_ttl/put_with_ttl — written_at holds epoch seconds.
+Originally copied from tide-mcp's cache; diverged 2026-06 — weather-mcp uses
+only TTL entries (forecasts, buoy observations, station lists) keyed by
+source + spatial bucket via get_with_ttl/put_with_ttl. The immutable
+(never-expire) get/put pair was pruned: nothing here called it, and a future
+caller using bare get() on a TTL key would read stale data with no freshness
+check (fleet conventions R4).
 """
 
 from __future__ import annotations
@@ -39,18 +39,6 @@ class EventCache:
         cols = {row[1] for row in self._conn.execute("PRAGMA table_info(events_cache)")}
         if "written_at" not in cols:
             self._conn.execute("ALTER TABLE events_cache ADD COLUMN written_at REAL")
-        self._conn.commit()
-
-    def get(self, key: str) -> list[dict] | None:
-        cur = self._conn.execute("SELECT payload FROM events_cache WHERE key = ?", (key,))
-        row = cur.fetchone()
-        return json.loads(row[0]) if row else None
-
-    def put(self, key: str, payload: list[dict]) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO events_cache (key, payload, written_at) VALUES (?, ?, NULL)",
-            (key, json.dumps(payload)),
-        )
         self._conn.commit()
 
     def get_with_ttl(self, key: str, ttl_seconds: float) -> list[dict] | None:

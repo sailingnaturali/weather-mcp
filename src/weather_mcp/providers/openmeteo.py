@@ -147,6 +147,8 @@ async def fetch_forecast(
     out: list[MarineForecastHour] = []
     for i, t in enumerate(times):
         utc = _parse_dt(t)
+        # Strictly-before the truncated current hour keeps the in-progress
+        # hour (the 14:00 row at 14:59) and drops completed ones.
         if utc < now.replace(minute=0, second=0, microsecond=0):
             continue
         out.append(
