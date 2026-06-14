@@ -12,7 +12,11 @@ requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.27.1",
+    "marine-forecast>=0.1.0",
 ]
+
+[tool.uv.sources]
+marine-forecast = { git = "https://github.com/sailingnaturali/marine-forecast", tag = "v0.1.0" }
 
 [project.scripts]
 weather-mcp = "weather_mcp.server:main"

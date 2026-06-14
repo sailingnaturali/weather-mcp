@@ -284,6 +284,14 @@ wheels = [
 ]
 
 [[package]]
+name = "marine-forecast"
+version = "0.1.0"
+source = { git = "https://github.com/sailingnaturali/marine-forecast?tag=v0.1.0#8eb2d6860f22d7109cc3254f5051279d941bdd7d" }
+dependencies = [
+    { name = "httpx" },
+]
+
+[[package]]
 name = "mcp"
 version = "1.27.1"
 source = { registry = "https://pypi.org/simple" }
@@ -755,6 +763,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "marine-forecast" },
     { name = "mcp" },
 ]
 
@@ -768,6 +777,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "marine-forecast", git = "https://github.com/sailingnaturali/marine-forecast?tag=v0.1.0" },
     { name = "mcp", specifier = ">=1.27.1" },
 ]
 
