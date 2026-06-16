@@ -8,7 +8,7 @@ ground truth, the NDBC `.spec` format):
 
 ## Tools
 
-- `get_marine_forecast(lat, lon, hours_ahead?)` — Open-Meteo wind/swell/seas forecast for a position. Routine; no quota.
+- `get_marine_forecast(lat, lon, hours_ahead?)` — wind/swell/seas forecast for a position. Routine; no quota. Reads the boat's **SignalK Weather API** (`/signalk/v2/api/weather`) when `SIGNALK_URL` is set, falling back to direct Open-Meteo otherwise; the response `source` reports which was used. (Both are Open-Meteo under the hood.)
 - `get_marine_forecast_premium(lat, lon, hours_ahead?)` — Stormglass blended model. Free tier caps at 10 requests per UTC day; cache hits do not count.
 - `get_nearest_buoy_observations(lat, lon, max_distance_nm?, limit?)` — NDBC observed wind + waves. Reality check for forecasts. Where a station publishes `.spec` spectral data, swell and wind waves are reported separately; otherwise combined waves only.
 - `get_stormglass_quota_status()` — used/remaining premium tokens for the current UTC day.
@@ -41,6 +41,7 @@ Claude Desktop / MCP client config:
 
 ## Configuration
 
+- `SIGNALK_URL` — optional; the boat SignalK server (e.g. `http://naturalaspi.local:3000`). When set, `get_marine_forecast` reads the standard Weather API there first (needs a WeatherProvider plugin such as `@signalk/open-meteo-provider` installed), falling back to direct Open-Meteo. **Unset by default** — leave it empty when running off-boat to skip the SignalK round-trip.
 - `STORMGLASS_API_KEY` — required for `get_marine_forecast_premium`.
 - `WEATHER_CACHE_PATH` — optional; defaults to `~/.weather-mcp/cache.sqlite`.
 

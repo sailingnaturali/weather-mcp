@@ -15,7 +15,9 @@ from weather_mcp.client import RateLimitedClient
 from weather_mcp.fetch import (
     get_nearest_buoy_observations,
     get_openmeteo_forecast,
+    get_signalk_forecast,
     get_stormglass_forecast,
+    signalk_base_url,
 )
 from weather_mcp.providers.ndbc import BuoyObservation
 from weather_mcp.providers.openmeteo import MarineForecastHour, WaveObs, WindObs
@@ -161,7 +163,19 @@ async def get_marine_forecast(
     lon: float,
     hours_ahead: int = 12,
 ) -> dict:
-    """Open-Meteo wind + separated swell/wind-waves + pressure."""
+    """Wind + separated swell/wind-waves + pressure.
+
+    Prefers the boat's SignalK Weather API (``/signalk/v2/api/weather``) when
+    ``SIGNALK_URL`` is set, so the agent reads the vessel's canonical weather
+    surface; falls back to direct Open-Meteo when SignalK or a provider is
+    unavailable. (Both are ultimately Open-Meteo, so the data shape matches.)
+    """
+    if signalk_base_url():
+        try:
+            hours = await get_signalk_forecast(client, cache, lat, lon, hours_ahead)
+            return _forecast_response("signalk", lat, lon, hours)
+        except Exception:
+            pass  # server down / no provider / empty — fall back to direct Open-Meteo
     try:
         hours = await get_openmeteo_forecast(client, cache, lat, lon, hours_ahead)
     except Exception as e:

@@ -7,15 +7,17 @@ to_dict/from_dict round-trip.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 
 from weather_mcp.cache import EventCache
 from weather_mcp.client import RateLimitedClient
-from weather_mcp.providers import ndbc, openmeteo, stormglass
+from weather_mcp.providers import ndbc, openmeteo, signalk, stormglass
 from weather_mcp.providers.openmeteo import MarineForecastHour
 from weather_mcp.quota import StormglassQuota
 
 OPENMETEO_TTL = 60 * 60  # 1h
+SIGNALK_TTL = 60 * 60  # 1h (hourly forecast; provider also caches upstream)
 STORMGLASS_TTL = 6 * 60 * 60  # 6h
 NDBC_OBS_TTL = 15 * 60  # 15min
 NDBC_STATIONS_TTL = 24 * 60 * 60
@@ -49,6 +51,30 @@ async def get_openmeteo_forecast(
         hours = [MarineForecastHour.from_dict(d) for d in cached]
         return hours[:hours_ahead]
     hours = await openmeteo.fetch_forecast(client, lat, lon, hours_ahead=MAX_FORECAST_HOURS)
+    cache.put_with_ttl(key, [h.to_dict() for h in hours])
+    return hours[:hours_ahead]
+
+
+def signalk_base_url() -> str:
+    """Boat SignalK server base URL, read at call time so tests can set it.
+
+    Empty (the default) disables the SignalK path entirely — the MCP then goes
+    straight to direct Open-Meteo, avoiding a connect timeout when run off-boat.
+    """
+    return os.environ.get("SIGNALK_URL", "").strip()
+
+
+async def get_signalk_forecast(
+    client: RateLimitedClient, cache: EventCache, lat: float, lon: float, hours_ahead: int
+) -> list[MarineForecastHour]:
+    key = f"signalk:{_bucket(lat, 2)}:{_bucket(lon, 2)}:{_hour_bucket()}"
+    cached = cache.get_with_ttl(key, SIGNALK_TTL)
+    if cached is not None:
+        hours = [MarineForecastHour.from_dict(d) for d in cached]
+        return hours[:hours_ahead]
+    hours = await signalk.fetch_forecast(
+        client, signalk_base_url(), lat, lon, MAX_FORECAST_HOURS
+    )
     cache.put_with_ttl(key, [h.to_dict() for h in hours])
     return hours[:hours_ahead]
 
