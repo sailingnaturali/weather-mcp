@@ -12,6 +12,7 @@ import time
 
 from weather_mcp.cache import EventCache
 from weather_mcp.client import RateLimitedClient
+from weather_mcp.netutil import resolve_local_host
 from weather_mcp.providers import ndbc, openmeteo, signalk, stormglass
 from weather_mcp.providers.openmeteo import MarineForecastHour
 from weather_mcp.quota import StormglassQuota
@@ -61,7 +62,7 @@ def signalk_base_url() -> str:
     Empty (the default) disables the SignalK path entirely — the MCP then goes
     straight to direct Open-Meteo, avoiding a connect timeout when run off-boat.
     """
-    return os.environ.get("SIGNALK_URL", "").strip()
+    return resolve_local_host(os.environ.get("SIGNALK_URL", "").strip())
 
 
 async def get_signalk_forecast(
