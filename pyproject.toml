@@ -1,6 +1,6 @@
 [project]
 name = "weather-mcp"
-version = "0.2.1"
+version = "0.2.2"
 description = "MCP server exposing marine wind, swell, and buoy observations as agent tools"
 readme = "README.md"
 license = "MIT"
@@ -13,10 +13,12 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp>=1.27.1",
     "marine-forecast>=0.1.0",
+    "naturali-mcp-netutil>=0.1.0",
 ]
 
 [tool.uv.sources]
 marine-forecast = { git = "https://github.com/sailingnaturali/marine-forecast", tag = "v0.1.0" }
+naturali-mcp-netutil = { git = "https://github.com/sailingnaturali/naturali-mcp-netutil", tag = "v0.1.0" }
 
 [project.scripts]
 weather-mcp = "weather_mcp.server:main"

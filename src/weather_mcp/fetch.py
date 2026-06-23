@@ -10,9 +10,10 @@ import asyncio
 import os
 import time
 
+from naturali_mcp_netutil import resolve_local_host
+
 from weather_mcp.cache import EventCache
 from weather_mcp.client import RateLimitedClient
-from weather_mcp.netutil import resolve_local_host
 from weather_mcp.providers import ndbc, openmeteo, signalk, stormglass
 from weather_mcp.providers.openmeteo import MarineForecastHour
 from weather_mcp.quota import StormglassQuota
